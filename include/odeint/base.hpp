@@ -1,8 +1,12 @@
 #ifndef ODEINT_BASE_HPP
 #define ODEINT_BASE_HPP
+#ifndef ODEINT_NO_PETSC
 #include <petscsys.h>
 #include <petscvec.h>
+#endif
+#ifndef ODEINT_NO_EIGEN
 #include <Eigen/Core>
+#endif
 #include <omp.h>
 #include <string>
 #include <pair>
@@ -13,7 +17,12 @@ namespace odeint
 {
 
 
+
+
+#ifndef ODEINT_NO_PETSC
+
   using Real = PetscReal;
+  using Scalar = PetscScalar;
   using Size = std::size_t;
   using Int = PetscInt;
   
@@ -154,6 +163,13 @@ namespace odeint
       return {std::vector{}, false};
     }
   }
+
+#else
+  using Real = double;
+  using Scalar = double;
+  using Int = int;
+  using Size = std::size_t;
+#endif //ODEINT_NO_PETSC
 					
  
   

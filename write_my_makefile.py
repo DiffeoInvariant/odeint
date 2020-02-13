@@ -11,6 +11,9 @@ parser.add_argument('--PETSC_ARCH','-PETSC_ARCH',help="PETSc architecture")
 parser.add_argument('--CXX','-CXX')
 parser.add_argument('--CXXFLAGS','-CXXFLAGS')
 
+ODEINT_DIR=str(path.abspath(getcwd()))
+ODEINT_INCLUDE_DIR=ODEINT_DIR+'/include/'
+
 def parse_args():
     args = {}
     pinfo = parser.parse_args()
@@ -19,7 +22,9 @@ def parse_args():
     if pinfo.program_name:
         args['target'] = pinfo.program_name
     if pinfo.files:
-        args['srcs'] = pinfo.files
+        args['srcs'] = [str(fl).rsplit('/',1)[1] for fl in pinfo.files]
+
+        
     if pinfo.PETSC_DIR:
         args['PETSC_DIR'] = pinfo.PETSC_DIR
     else:
@@ -35,29 +40,31 @@ def parse_args():
     if pinfo.CXXFLAGS:
         args['CXXFLAGS'] = pinfo.CXXFLAGS
     else:
-        args['CXXFLAGS'] = '-std=c++17 -O3 -march=native -mtune=native'
+        args['CXXFLAGS'] = '-std=c++17 -O3 -march=native -mtune=native -fopenmp'
     
 
 
     args['petsc_var_include'] = 'include $(PETSC_DIR)/$(PETSC_ARCH)/lib/petsc/conf/petscvariables'
     args['petsc_rules_include'] = 'include $(PETSC_DIR)/$(PETSC_ARCH)/lib/petsc/conf/petscrules'
+    args['petsc_base_include'] = 'include $(PETSC_DIR)/$(PETSC_ARCH)/lib/petsc/conf/base'
 
     return args
 
 
 def form_lines(args):
-    lines = [f"PETSC_DIR={args['PETSC_DIR']}\n",
+    lines = [f"CXX={args['CXX']}\n",
+             f"CXXFLAGS={args['CXXFLAGS']}\n\n",
+             f"PETSC_DIR={args['PETSC_DIR']}\n",
              f"PETSC_ARCH={args['PETSC_ARCH']}\n",
              f"{args['petsc_var_include']}\n",
-             f"{args['petsc_rules_include']}\n\n",
-             f"CXX={args['CXX']}\n",
-             f"CXXFLAGS={args['CXXFLAGS']}\n\n",
-             f"ODEINT_INCL={str(getcwd()) + '/include/'}\n",
+             f"{args['petsc_rules_include']}\n",
+             f"ODEINT_INCL={ODEINT_INCLUDE_DIR}\n",
+             f"INCLS=-I$(ODEINT_INCL) $(PETSC_CC_INCLUDES) `pkg-config --cflags eigen3`\n\n",
              f"TARGET={args['target']}\n\n",
              f".PHONY: all clean $(TARGET)\n\n",
              f"all: $(TARGET)\n\n",
              f"$(TARGET): {' '.join(args['srcs'])}\n",
-             f"\t$(CXX) $(CXXFLAGS) $^ -o $@ $(PETSC_CC_INCLUDES) `pkg-config --cflags eigen3` -L$(PETSC_DIR)/(PETSC_ARCH)/lib -lpetsc -lmpi -lm -ldl\n\n",
+             f"\t$(CXX) $(CXXFLAGS) $^ -o $@ $(INCLS) $(PETSC_WITH_EXTERNAL_LIB)\n\n",
              f"clean:\n",
              f"\t@$(RM) *.o"]
 
@@ -66,7 +73,7 @@ def form_lines(args):
 
 def write_makefile(args, lines):
     mfname = args['outdir']+'/makefile'
-    with open(mfname, 'x') as makefile:
+    with open(mfname, 'w') as makefile:
         for line in lines:
             makefile.write(line)
             
