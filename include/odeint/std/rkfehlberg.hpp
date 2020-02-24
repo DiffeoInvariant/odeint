@@ -13,9 +13,12 @@
 #include <fstream>
 #include <string>
 #include <omp.h>
+#include "array_ops.hpp"
 
 namespace odeint
 {
+  inline namespace stdarray
+  {
 
   static constexpr std::array<double, 5>   rkf_h_coeffs{0.25, 3.0/8.0,
 						  12.0/13.0, 1.0, 0.5};
@@ -35,53 +38,7 @@ namespace odeint
 						  28561.0/56430.0, -9.0/50.0,
 						  2.0/55.0};
 
-  template<typename T, std::size_t N>
-  static constexpr std::array<T, N> add(const std::array<T,N>& lhs, const std::array<T,N>& rhs) noexcept
-  {
-    auto res = lhs;
-    for(auto i = 0; i < N; ++i){
-      res[i] += rhs[i];
-    }
-    return res;
-  }
-
-  template<typename T, std::size_t N>
-  static constexpr void inplace_add(std::array<T,N>& add_to, const std::array<T,N>& rhs) noexcept
-  {
-    for(auto i = 0; i < N; ++i){
-      add_to[i] += rhs[i];
-    }
-  }
-
-  template<typename T, std::size_t N, std::size_t M>
-  static constexpr std::array<T,N> add_multiple(const std::array<std::array<T,N>, M>& arrays) noexcept
-  {
-    auto result = arrays[0];
-    for(auto i = 1; i < M; ++i){
-      inplace_add(result, arrays[i]);
-    }
-    return result;
-  }
-      
-
-  template<typename T, std::size_t N>
-  static constexpr std::array<T, N> scale(const std::array<T,N>& arr, T scale_by) noexcept
-  {
-    auto res = arr;
-    for(auto i = 0; i < N; ++i){
-      res[i] *= scale_by;
-    }
-    return res;
-  }
-
-  template<typename T, std::size_t N>
-  static constexpr void inplace_scale(std::array<T,N>& arr, T scale_by) noexcept
-  {
-    for(auto i = 0; i < N; ++i){
-      arr[i] *= scale_by;
-    }
-  }
-
+  
   
 
   template<typename T, std::size_t N, typename Func>
@@ -213,7 +170,7 @@ namespace odeint
     
       
     
-    
+  
 
   template<typename T, std::size_t N, typename Func>
   extern std::vector<std::pair<std::array<T, N>, T>>
@@ -268,6 +225,61 @@ namespace odeint
       csv << "\n";
     }
   }
+
+    template<typename T, std::size_t N>
+    using RHSFunc_t = std::function<std::array<T,N>(T, const std::array<T,N>&)>;
+
+    template<typename T, std::size_t N>
+    extern std::vector<std::pair<std::array<T, N>, T>>
+    rkfehlberg_integrate(RHSFunc_t<T,N>& f, const std::array<T,N>& x0,
+			 T dt_min, T dt_max, T t0, T tf, T tol,
+			 const std::vector<std::function<bool(T, const std::array<T,N>&)>>& event_finders,
+			 const std::vector<std::function<void(T, T&, const std::array<T,N>&, RHSFunc_t<T,N>&)>>& event_handlers,
+			 int TolNorm=-1)
+    {
+      //functions in event_handlers take (t, dt, x, f), and can modify dt and f if they choose
+      if(event_finders.size() != event_handlers.size()){
+	throw "Error, must supply the same number of event finders and event handlers.";
+      }
+      auto n_event_finders = event_finders.size();
+      std::vector<std::pair<std::array<T, N>, T>> states_at_times;
+      //estimate max number of timesteps we'll take 
+      states_at_times.reserve(static_cast<std::size_t>(2 * dt_min / (tf - t0)));
+      auto t = t0;
+      auto x = x0;
+      auto dt = dt_max;
+      states_at_times.push_back({x,t});
+      while(t < tf){
+	//std::cout << " time " << t << " and dt = " << dt << ".\n";
+	auto kvals = rkf_kvals(f, x, t, dt);
+	try {
+	  auto [rk4delta, resid] = rkfehlberg_deltas_and_resid(kvals, dt, TolNorm);
+	  auto [new_dt, use_rk4] = recompute_rkfehlberg_dt(resid, tol, t, dt, dt_min, dt_max, tf);
+	  dt = new_dt;
+	  if(use_rk4){
+	    inplace_add(x, rk4delta);
+	    t += dt;
+	    states_at_times.push_back({x,t});
+	    //handle events
+	    for(auto i = 0; i < n_event_finders; ++i){
+	      if((event_finders[i])(t, x)){
+		(event_handlers[i])(t, dt, x, f);
+	      }
+	    }
+	    
+	  }
+	} catch(const std::exception& e){
+	  throw;
+	}
+      }
+
+      return states_at_times;
+    }
+
+
+  
+
+  }//inline namespace stdarray
       
     
 }
