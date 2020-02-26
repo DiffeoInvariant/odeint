@@ -86,7 +86,7 @@ namespace odeint
     void set_num_timesteps(Size N)
     {
       _num_timesteps = N;
-      _final_time = _dt * Real(N);
+      _tfinal = _dt * Real(N);
     }
 
     void set_dt(T new_dt)
@@ -160,16 +160,15 @@ namespace odeint
     T                                  _dt, _tfinal, _t = T(0.0);
     Size                               _num_timesteps=0;
 
-    union
-    {
-    std::function<
+
+   std::function<
       PetscErrorCode(T, const V&, V&)
     >                                  _petsc_rhs;
 
     std::function<
       V(T, const V&)
     >                                  _eigen_rhs;
-    };
+    
    
     bool                               _save_trajectory=false;
     std::vector<std::pair<T,V>>        _saved_trajectory;//pair of (time, state)

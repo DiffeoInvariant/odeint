@@ -9,10 +9,11 @@
 #endif
 #include <omp.h>
 #include <string>
-#include <pair>
 #include <cstddef>
 #include <vector>
 #include <optional>
+#include <functional>
+#include <utility>
 namespace odeint
 {
 
@@ -26,11 +27,12 @@ namespace odeint
   using Size = std::size_t;
   using Int = PetscInt;
   
-  void initialize(int *argc, char ***argv,
+  PetscErrorCode initialize(int *argc, char ***argv,
 		  const char file[]=NULL,
 		  const char help[]=NULL)
   {
     auto ierr = PetscInitialize(argc, argv, file, help);CHKERRQ(ierr);
+    return ierr;
   }
 
 
@@ -38,7 +40,7 @@ namespace odeint
 			std::optional<std::string> prepend=std::nullopt,
 			PetscOptions opts_db=NULL)
   {
-    bool has_opt;
+    PetscBool has_opt;
     if(prepend){
       auto ierr = PetscOptionsHasName(opts_db, prepend->c_str(),
 				      name.c_str(), &has_opt);CHKERRQ(ierr);
@@ -51,40 +53,41 @@ namespace odeint
 
   template<typename T>
   std::pair<T, bool> get_petsc_option(std::string name,
-				      std::optional<std::string> prepend=std::nullopt,
-				      PetscOptions opts_db=NULL);
+					    std::optional<std::string> prepend=std::nullopt,
+					    PetscOptions opts_db=NULL);
 
+  
   template<>
   std::pair<Real, bool> get_petsc_option<Real>(std::string name,
-					       std::optional<std::string> prepend=std::nullopt,
-					       PetscOptions opts_db=NULL)
+					       std::optional<std::string> prepend,
+					       PetscOptions opts_db)
   {
-    bool has_opt;
+    PetscBool has_opt;
     Real val=0;
     if(prepend){
       auto ierr = PetscOptionsGetReal(opts_db, prepend->c_str(),
-				      name.c_str(), &val, &has_opt);CHKERRQ(ierr);
+				      name.c_str(), &val, &has_opt); 
     } else {
       auto ierr = PetscOptionsGetReal(opts_db, NULL,
-				      name.c_str(), &val, &has_opt);CHKERRQ(ierr);
+				      name.c_str(), &val, &has_opt); 
     }
       
     return {val, has_opt};
   }
 
   template<>
-  std::pair<Int, bool> get_petsc_option<Real>(std::string name,
-					       std::optional<std::string> prepend=std::nullopt,
-					       PetscOptions opts_db=NULL)
+  std::pair<Int, bool> get_petsc_option<Int>(std::string name,
+					       std::optional<std::string> prepend,
+					       PetscOptions opts_db)
   {
-    bool has_opt;
+    PetscBool has_opt;
     Int val=0;
     if(prepend){
       auto ierr = PetscOptionsGetInt(opts_db, prepend->c_str(),
-				     name.c_str(), &val, &has_opt);CHKERRQ(ierr);
+				     name.c_str(), &val, &has_opt); 
     } else {
       auto ierr = PetscOptionsGetInt(opts_db, NULL,
-				     name.c_str(), &val, &has_opt);CHKERRQ(ierr);
+				     name.c_str(), &val, &has_opt); 
     }
       
     return {val, has_opt};
@@ -94,18 +97,18 @@ namespace odeint
   #define ODEINT_MAX_OPT_STR_LEN 100
   template<>
   std::pair<std::string, bool> get_petsc_option<std::string>(std::string name,
-					                     std::optional<std::string> prepend=std::nullopt,
-							     PetscOptions opts_db=NULL)
+					                     std::optional<std::string> prepend,
+							     PetscOptions opts_db)
   {
-    bool has_opt;
+    PetscBool has_opt;
     char *val;
 
     if(prepend){
-      auto ierr = PetscOptionsGetReal(opts_db, prepend->c_str(),
-				      name.c_str(), val, ODEINT_MAX_OPT_STR_LEN, &has_opt);CHKERRQ(ierr);
+      auto ierr = PetscOptionsGetString(opts_db, prepend->c_str(),
+				      name.c_str(), val, ODEINT_MAX_OPT_STR_LEN, &has_opt); 
     } else {
-      auto ierr = PetscOptionsGetReal(opts_db, NULL,
-				      name.c_str(), val, ODEINT_MAX_OPT_STR_LEN, &has_opt);CHKERRQ(ierr);
+      auto ierr = PetscOptionsGetString(opts_db, NULL,
+				      name.c_str(), val, ODEINT_MAX_OPT_STR_LEN, &has_opt); 
     }
     return {std::string{val}, has_opt};
   }
@@ -115,52 +118,52 @@ namespace odeint
   template<>
   std::pair<std::vector<Int>, bool>
   get_petsc_option<std::vector<Int>>(std::string name,
-				      std::optional<std::string> prepend=std::nullopt,
-				     PetscOptions opts_db=NULL)
+				      std::optional<std::string> prepend,
+				     PetscOptions opts_db)
   {
-    bool has_opt;
+    PetscBool has_opt;
     Int size = ODEINT_MAX_OPT_ARR_LEN;
     Int *vals;
     if(prepend){
       auto ierr = PetscOptionsGetIntArray(opts_db, prepend->c_str(), name.c_str(),
-					  vals, &size, &has_opt);CHKERRQ(ierr);
+					  vals, &size, &has_opt); 
     } else {
       auto ierr = PetscOptionsGetIntArray(opts_db, NULL, name.c_str(),
-					  vals, &size, &has_opt);CHKERRQ(ierr);
+					  vals, &size, &has_opt); 
     }
       
     if(has_opt){
-      return {std::vector(vals, vals+size), true};
+      return std::make_pair(std::vector(vals, vals+size), true);
     } else {
-      return {std::vector{}, false};
+      return std::make_pair(std::vector<Int>(), false);
     }
   }
 
   template<>
   std::pair<std::vector<Real>, bool>
   get_petsc_option<std::vector<Real>>(std::string name,
-				     std::optional<std::string> prepend=std::nullopt,
-				     PetscOptions opts_db=NULL)
+				     std::optional<std::string> prepend,
+				     PetscOptions opts_db)
   {
-    bool has_opt;
+    PetscBool has_opt;
     Int size = ODEINT_MAX_OPT_ARR_LEN;
     Real *vals;
     if(prepend){
       auto ierr = PetscOptionsGetRealArray(opts_db, prepend->c_str(), name.c_str(),
-					   vals, &size, &has_opt);CHKERRQ(ierr);
+					   vals, &size, &has_opt); 
     } else {
       auto ierr = PetscOptionsGetRealArray(opts_db, NULL, name.c_str(),
-					   vals, &size, &has_opt);CHKERRQ(ierr);
+					   vals, &size, &has_opt); 
     }
     if(has_opt){
-      auto retval = {std::vector(vals, vals+size), true};
+      auto retval = std::make_pair(std::vector(vals, vals+size), true);
       if(vals){
 	delete[] vals;
 	vals = NULL;
       }
       return retval;
     } else {
-      return {std::vector{}, false};
+      return std::make_pair(std::vector<Real>(), false);
     }
   }
 
@@ -169,13 +172,20 @@ namespace odeint
   using Scalar = double;
   using Int = int;
   using Size = std::size_t;
+  using PetscErrorCode = int;
 #endif //ODEINT_NO_PETSC
-					
- 
+
   
-
-
-
+  template<typename Func, typename... Args>
+  std::function<Eigen::VectorXd(double, const Eigen::VectorXd&)>
+  bind_rhs(const Func& f, Args&... args)
+  {
+    namespace ph = std::placeholders;
+    return static_cast<
+      std::function<Eigen::VectorXd(double, const Eigen::VectorXd&)>
+      >(std::bind(f, ph::_1, ph::_2, args...));
+  }
+ 
 
 
 
