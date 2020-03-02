@@ -8,13 +8,13 @@ include $(PETSC_DIR)/$(PETSC_ARCH)/lib/petsc/conf/petscrules
 ODEINT_INCL=/home/diffeoinvariant/odeint/include/
 INCLS=-I$(ODEINT_INCL) $(PETSC_CC_INCLUDES) `pkg-config --cflags eigen3`
 
-TARGET=test_rk4
+TARGET=poincare_section
 
 .PHONY: all clean $(TARGET)
 
 all: $(TARGET)
 
-$(TARGET): test_rk4.cpp
+$(TARGET): poincare_section_rk4.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(INCLS) $(PETSC_WITH_EXTERNAL_LIB)
 
 clean:

@@ -109,7 +109,7 @@ int main(){
   odeint::write_csv("p2a_section.csv", section_finder.crossings);
 
   section_finder.reset();
-
+  
   section_finder.T = 0.42;
 
   trajectory = odeint::rk4_integrate(rhs, x0, dt, t0, tf, {section_finder},
@@ -128,11 +128,21 @@ int main(){
   x0 = {-1.4, -0.75};
 
   trajectory = odeint::rk4_integrate(rhs, x0, dt, t0, tf, {section_finder},
-				     {save_crossing});
+  			     {save_crossing});
   odeint::write_csv("p2c_traj_A18_b025_a165.csv", trajectory);
   odeint::write_csv("p2c_section_A18_b025_a165.csv", section_finder.crossings);
 
 
+  section_finder.reset();
+  
+  dt = 0.005;
+
+  trajectory = odeint::rk4_integrate(rhs, x0, dt, t0, tf, {section_finder},
+				     {save_crossing});
+  odeint::write_csv("p2d_traj_A18_b025_a165.csv", trajectory);
+  odeint::write_csv("p2d_section_A18_b025_a165.csv", section_finder.crossings);
+
+  
   InterpolatingCrossingFinder isection_finder(T0, dt);
 
   auto save_crossing_i = [&isection_finder](double t, double& dt, const State& x,
@@ -173,6 +183,15 @@ int main(){
 				     {save_crossing_i});
   odeint::write_csv("p3c_traj_A18_b025_a165.csv", trajectory);
   odeint::write_csv("p3c_section_A18_b025_a165.csv", isection_finder.crossings);
+
+  isection_finder.reset();
+  dt = 0.005;
+
+  trajectory = odeint::rk4_integrate(rhs, x0, dt, t0, tf, {isection_finder},
+				     {save_crossing_i});
+  odeint::write_csv("p3d_traj_A18_b025_a165.csv", trajectory);
+  odeint::write_csv("p3d_section_A18_b025_a165.csv", isection_finder.crossings);
+  
 
   return 0;
 
