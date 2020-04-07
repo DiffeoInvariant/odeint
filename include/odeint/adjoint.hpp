@@ -2,6 +2,7 @@
 #define ODEINT_ADJOINT_HPP
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -47,6 +48,15 @@ namespace odeint
 	advance_timestep();
       }
       return x;
+    }
+
+    Eigen::VectorXcd lyapunovExponents()
+    {
+      auto ev = delta.eigenvalues();
+      for(auto i=0; i<ev.size(); ++i){
+	ev[i] = std::log(std::abs(ev[i]))/t;
+      }
+      return ev;
     }
 
     std::pair<Vec_t, Mat_t> integrate_with_grad()
